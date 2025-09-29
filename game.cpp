@@ -143,7 +143,7 @@ int main()
     {
         player_move(board, count);
         count++;
-        if (count == 9)
+        if (count == 10)
         {
             cout << "draw" << endl;
             break;
