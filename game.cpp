@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <cctype>
 using namespace std;
 
 void print_board(char board[3][3])
@@ -122,32 +124,77 @@ void player_move(char board[3][3], int count)
     }
 }
 
-int main()
+bool validate(string type, string input)
 {
-    char start_board[3][3];
-    build_board(start_board);
-    print_board(start_board);
-    int count = 0;
-    cout << endl;
-
-    char board[3][3] = {
-        {' ', ' ', ' '},
-        {' ', ' ', ' '},
-        {' ', ' ', ' '}};
-
-    print_board(board);
-
-    cout << check_win(board) << endl;
-
-    while (!check_win(board))
+    if (type == "mode")
     {
-        player_move(board, count);
-        count++;
-        if (count == 10)
+        // for when the user has to input and gamemode
+        // transform(input.begin(), input.end(), input.begin(), [](unsigned char c)
+        //{return tolower(c);});
+        if (input == "original" || input == "battle")
         {
-            cout << "draw" << endl;
-            break;
+            return true;
         }
     }
-    cout << "thanks for playing";
+    if (type == "mark")
+    {
+        // for when the use has to pick a marker
+    }
+    return false;
+}
+
+void char_select()
+{
+    cout << "In battle mode, you can choose your own marker (still must be only 1 character)" << endl;
+}
+
+void start_menu()
+{
+    cout << "Welcome to Tic Tac Toe" << endl;
+    cout << "Would you like to play original or battle mode? (please type exactly \"original\" or \"battle\")" << endl;
+    string mode;
+    cin >> mode;
+    while (!validate("mode", mode))
+    {
+        cin.clear();
+        cout << "please enter your choice of game mode" << endl;
+        cin >> mode;
+    }
+
+    if (mode == "battle")
+    {
+        char_select();
+    }
+}
+
+int main()
+{
+    start_menu();
+
+    // char start_board[3][3];
+    // build_board(start_board);
+    // print_board(start_board);
+    // int count = 0;
+    // cout << endl;
+
+    // char board[3][3] = {
+    //     {' ', ' ', ' '},
+    //     {' ', ' ', ' '},
+    //     {' ', ' ', ' '}};
+
+    // print_board(board);
+
+    // cout << check_win(board) << endl;
+
+    // while (!check_win(board))
+    // {
+    //     player_move(board, count);
+    //     count++;
+    //     if (count == 10)
+    //     {
+    //         cout << "draw" << endl;
+    //         break;
+    //     }
+    // }
+    // cout << "thanks for playing";
 }
