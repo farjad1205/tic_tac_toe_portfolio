@@ -5,8 +5,105 @@
 #include <cctype>
 #include <stdexcept>
 #include <map>
+#include <ctime>
+#include <cstdlib>
+#include <fstream>
+#include <limits>
 
 using namespace std;
+
+// ==========================================
+// HELPER FUNCTIONS (INPUT HANDLING)
+// ==========================================
+
+// Helper to safely get an integer from the user
+// This replaces cin >> var; cin.clear(); logic
+int get_int_input()
+{
+    string input;
+    getline(cin, input);
+
+    // Check if empty
+    if (input.empty())
+        return -999;
+
+    // Check if it's a number
+    try
+    {
+        return stoi(input);
+    }
+    catch (...)
+    {
+        return -999; // Return invalid code on failure
+    }
+}
+
+// ==========================================
+// CHARACTER CLASS
+// ==========================================
+
+class Character
+{
+public:
+    string name;
+    string role;
+    char mark;
+    int hp;
+    int max_hp;
+    int attack;
+    int defense;
+    int gold;
+    int morality;
+
+    Character()
+    {
+        name = "";
+        role = "";
+        mark = ' ';
+        hp = 100;
+        max_hp = 100;
+        attack = 10;
+        defense = 2;
+        gold = 20;
+        morality = 0;
+    }
+
+    Character(string n, string r, char s, int h, int a, int d, int g, int m)
+    {
+        name = n;
+        role = r;
+        mark = s;
+        hp = h;
+        max_hp = h;
+        attack = a;
+        defense = d;
+        gold = g;
+        morality = m;
+    }
+
+    void take_damage(int dmg)
+    {
+        hp -= dmg;
+        if (hp < 0)
+            hp = 0;
+    }
+
+    void heal(int amount)
+    {
+        hp += amount;
+        if (hp > max_hp)
+            hp = max_hp;
+    }
+
+    bool is_alive()
+    {
+        return hp > 0;
+    }
+};
+
+// ==========================================
+// UTILITIES & BOARD LOGIC
+// ==========================================
 
 bool isAdjacent(int fromLoc, int toLoc)
 {
@@ -26,477 +123,646 @@ bool isAdjacent(int fromLoc, int toLoc)
         for (int loc : adj[fromLoc])
         {
             if (loc == toLoc)
-            {
                 return true;
-            }
         }
     }
     return false;
-}
-
-bool validate(string type, string input)
-{
-    if (type == "gamemode")
-        if (input == "original" || input == "battle")
-            return true;
-
-    if (type == "class")
-        if (input == "paladin" || input == "alchemist")
-            return true;
-
-    if (type == "move")
-        if (input == "yes" || input == "no" || input == "1" || input == "2")
-            return true;
-
-    if (type == "loc")
-    {
-        try
-        {
-            int loc = stoi(input);
-            if (loc >= 1 && loc <= 9)
-                return true;
-        }
-        catch (const std::invalid_argument &ia)
-        {
-            return false;
-        }
-        catch (const std::out_of_range &oor)
-        {
-            return false;
-        }
-    }
-    return false;
-}
-
-string start_menu()
-{
-    cout << "Welcome to Tic Tac Toe" << endl;
-    cout << "Would you like to play original or battle mode? (please type exactly \"original\" or \"battle\")" << endl;
-    string mode;
-    cin >> mode;
-    cin.ignore(10000, '\n');
-    while (!validate("gamemode", mode))
-    {
-        cin.clear();
-        cin.ignore(10000, '\n');
-        cout << "please type exactly \"original\" or \"battle\" to proceed" << endl;
-        cin >> mode;
-        cin.ignore(10000, '\n');
-    }
-    return mode;
 }
 
 void print_board(char board[3][3])
 {
-    cout << "---------" << endl;
-    char display[5][5] = {
-        {board[0][0], '|', board[0][1], '|', board[0][2]},
-        {'-', '+', '-', '+', '-'},
-        {board[1][0], '|', board[1][1], '|', board[1][2]},
-        {'-', '+', '-', '+', '-'},
-        {board[2][0], '|', board[2][1], '|', board[2][2]}};
-
-    for (int i = 0; i < 5; i++)
-    {
-        for (int j = 0; j < 5; j++)
-        {
-            cout << display[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "---------" << endl;
-    return;
-}
-
-void intro_board(char board[3][3])
-{
-    cout << endl;
-    cout << "Below is the locations of each square." << endl;
-    cout << "If you would like to place your move in that location, enter that number on your turn." << endl;
-
-    char direction_board[3][3] = {
-        {'1', '2', '3'},
-        {'4', '5', '6'},
-        {'7', '8', '9'}};
-
+    cout << "\n---------" << endl;
     for (int i = 0; i < 3; i++)
     {
-        for (int j = 0; j < 3; j++)
-        {
-            board[i][j] = direction_board[i][j];
-        }
+        cout << board[i][0] << " | " << board[i][1] << " | " << board[i][2] << endl;
+        if (i < 2)
+            cout << "---------" << endl;
     }
+    cout << "---------" << endl;
 }
 
-bool check_win(const char board[3][3])
+void intro_board()
 {
+    cout << "Board Reference Keys:" << endl;
+    cout << "1 | 2 | 3" << endl;
+    cout << "---------" << endl;
+    cout << "4 | 5 | 6" << endl;
+    cout << "---------" << endl;
+    cout << "7 | 8 | 9" << endl;
+}
+
+void get_coords(int loc, int &row, int &col)
+{
+    row = (loc - 1) / 3;
+    col = (loc - 1) % 3;
+}
+
+char check_winner(char board[3][3])
+{
+    // Rows
     for (int i = 0; i < 3; i++)
         if (board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != ' ')
-            return true;
-
+            return board[i][0];
+    // Cols
     for (int i = 0; i < 3; i++)
         if (board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != ' ')
-            return true;
-
+            return board[0][i];
+    // Diagonals
     if (board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != ' ')
-        return true;
-    else if (board[2][0] == board[1][1] && board[1][1] == board[0][2] && board[2][0] != ' ')
-        return true;
-    else
-        return false;
+        return board[0][0];
+    if (board[2][0] == board[1][1] && board[1][1] == board[0][2] && board[2][0] != ' ')
+        return board[2][0];
+
+    return ' ';
 }
 
-bool check_loc(char board[3][3], int marker)
+bool is_full(char board[3][3])
 {
-    if (marker > 9 || marker < 1)
-        return false;
-
-    int r = (marker - 1) / 3;
-    int c = (marker - 1) % 3;
-    if (board[r][c] != ' ')
-        return false;
-    else
-        return true;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            if (board[i][j] == ' ')
+                return false;
+    return true;
 }
 
-bool player_move(char board[3][3], int count, char p1, char p2, string c1, string c2)
+// ==========================================
+// ABILITIES
+// ==========================================
+
+bool perform_shift(char board[3][3])
 {
-    char currentPlayerMarker = (count % 2 == 0) ? p1 : p2;
-    string currentClass = (count % 2 == 0) ? c1 : c2;
-    int playerNumber = (count % 2 == 0) ? 1 : 2;
+    int from, to;
+    cout << "Select a square to move FROM (1-9): ";
+    from = get_int_input();
 
-    bool takeRegularMove = true;
-
-    if (!currentClass.empty())
+    if (from < 1 || from > 9)
     {
-        cout << "\nPlayer " << playerNumber << " (" << currentPlayerMarker << ") - " << currentClass << "'s Turn" << endl;
-        cout << "Choose your action:" << endl;
-        cout << "1. Make a regular move" << endl;
-        cout << "2. Use Special Ability (" << currentClass << ")" << endl;
+        cout << "Invalid input." << endl;
+        return false;
+    }
 
-        string actionChoice;
-        cin >> actionChoice;
-        cin.ignore(10000, '\n');
-        while (actionChoice != "1" && actionChoice != "2")
-        {
-            cin.clear();
-            cin.ignore(10000, '\n');
-            cout << "Invalid selection. Please enter '1' or '2'." << endl;
-            cin >> actionChoice;
-            cin.ignore(10000, '\n');
-        }
+    int r1, c1;
+    get_coords(from, r1, c1);
+    if (board[r1][c1] == ' ')
+    {
+        cout << "That square is empty!" << endl;
+        return false;
+    }
 
-        if (actionChoice == "2")
+    cout << "Select a square to move TO (1-9): ";
+    to = get_int_input();
+
+    if (to < 1 || to > 9)
+    {
+        cout << "Invalid input." << endl;
+        return false;
+    }
+
+    int r2, c2;
+    get_coords(to, r2, c2);
+    if (board[r2][c2] != ' ')
+    {
+        cout << "That destination is occupied!" << endl;
+        return false;
+    }
+
+    if (!isAdjacent(from, to))
+    {
+        cout << "Squares are not adjacent!" << endl;
+        return false;
+    }
+
+    board[r2][c2] = board[r1][c1];
+    board[r1][c1] = ' ';
+    return true;
+}
+
+bool perform_swap(char board[3][3])
+{
+    int loc1, loc2;
+    cout << "Select first square to swap (1-9): ";
+    loc1 = get_int_input();
+    cout << "Select second square to swap (1-9): ";
+    loc2 = get_int_input();
+
+    if (loc1 < 1 || loc1 > 9 || loc2 < 1 || loc2 > 9)
+    {
+        cout << "Invalid input." << endl;
+        return false;
+    }
+
+    int r1, c1, r2, c2;
+    get_coords(loc1, r1, c1);
+    get_coords(loc2, r2, c2);
+    char temp = board[r1][c1];
+    board[r1][c1] = board[r2][c2];
+    board[r2][c2] = temp;
+    return true;
+}
+
+void ai_turn(char board[3][3], Character &enemy, int turn_count)
+{
+    cout << enemy.name << " is thinking..." << endl;
+    bool ability_used = false;
+    int roll = rand() % 100;
+
+    if (roll < 30)
+    {
+        // Paladin/Boss Shift Logic
+        if (enemy.role == "Paladin" || enemy.role == "Boss")
         {
-            if (currentClass == "alchemist")
+            for (int i = 1; i <= 9 && !ability_used; i++)
             {
-                if (count < 2)
+                int r1, c1;
+                get_coords(i, r1, c1);
+                if (board[r1][c1] != ' ')
                 {
-                    cout << "Invalid move: Cannot use Alchemist ability on turn 1 or 2 (not enough marks)." << endl;
-                    cout << "Defaulting to a regular move." << endl;
-                    takeRegularMove = true;
-                }
-                else
-                {
-                    while (true)
+                    for (int j = 1; j <= 9 && !ability_used; j++)
                     {
-                        cout << "Alchemist Power: Swap two marks." << endl;
-                        cout << "Select the first mark to swap (1-9):" << endl;
-                        string loc1_str;
-                        cin >> loc1_str;
-                        cin.ignore(10000, '\n');
-                        while (!validate("loc", loc1_str))
+                        if (isAdjacent(i, j))
                         {
-                            cin.clear();
-                            cin.ignore(10000, '\n');
-                            cout << "Please make a valid selection (1-9)" << endl;
-                            cin >> loc1_str;
-                            cin.ignore(10000, '\n');
-                        }
-
-                        cout << "Select the second mark to swap (1-9):" << endl;
-                        string loc2_str;
-                        cin >> loc2_str;
-                        cin.ignore(10000, '\n');
-                        while (!validate("loc", loc2_str))
-                        {
-                            cin.clear();
-                            cin.ignore(10000, '\n');
-                            cout << "Please make a valid selection (1-9)" << endl;
-                            cin >> loc2_str;
-                            cin.ignore(10000, '\n');
-                        }
-
-                        int r1 = (stoi(loc1_str) - 1) / 3;
-                        int c1 = (stoi(loc1_str) - 1) % 3;
-                        int r2 = (stoi(loc2_str) - 1) / 3;
-                        int c2 = (stoi(loc2_str) - 1) % 3;
-
-                        if (board[r1][c1] == board[r2][c2])
-                        {
-                            cout << "Invalid move: Cannot swap two identical marks (e.g., 'X' and 'X' or ' ' and ' '). Try again." << endl;
-                        }
-                        else
-                        {
-                            char temp = board[r1][c1];
-                            board[r1][c1] = board[r2][c2];
-                            board[r2][c2] = temp;
-                            takeRegularMove = false;
-                            break;
+                            int r2, c2;
+                            get_coords(j, r2, c2);
+                            if (board[r2][c2] == ' ')
+                            {
+                                board[r2][c2] = board[r1][c1];
+                                board[r1][c1] = ' ';
+                                cout << ">> " << enemy.name << " used SHIFT! Moved " << i << " to " << j << endl;
+                                ability_used = true;
+                            }
                         }
                     }
                 }
             }
-            else if (currentClass == "paladin")
+        }
+
+        // Alchemist/Boss Swap Logic
+        if (!ability_used && (enemy.role == "Alchemist" || enemy.role == "Boss"))
+        {
+            if (turn_count > 1)
             {
-                if (count < 1)
-                {
-                    cout << "Invalid move: Cannot use Paladin ability on turn 1 (no marks on board)." << endl;
-                    cout << "Defaulting to a regular move." << endl;
-                    takeRegularMove = true;
-                }
-                else
-                {
-                    while (true)
-                    {
-                        cout << "Paladin Power: Shift any mark to an adjacent, empty square." << endl;
-                        cout << "Select the mark you want to shift (1-9):" << endl;
-                        string from_str;
-                        cin >> from_str;
-                        cin.ignore(10000, '\n');
-                        while (!validate("loc", from_str) || board[(stoi(from_str) - 1) / 3][(stoi(from_str) - 1) % 3] == ' ')
-                        {
-                            cin.clear();
-                            cin.ignore(10000, '\n');
-                            cout << "Invalid selection. You must pick a square with a mark on it (1-9)." << endl;
-                            cin >> from_str;
-                            cin.ignore(10000, '\n');
-                        }
+                int p1 = (rand() % 9) + 1;
+                int p2 = (rand() % 9) + 1;
+                int r1, c1, r2, c2;
+                get_coords(p1, r1, c1);
+                get_coords(p2, r2, c2);
 
-                        cout << "Select the empty square to move it to (1-9):" << endl;
-                        string to_str;
-                        cin >> to_str;
-                        cin.ignore(10000, '\n');
-
-                        if (!validate("loc", to_str))
-                        {
-                            cout << "Invalid input. Must be 1-9. Try again." << endl;
-                        }
-                        else if (board[(stoi(to_str) - 1) / 3][(stoi(to_str) - 1) % 3] != ' ')
-                        {
-                            cout << "Invalid move: Destination square is not empty. Try again." << endl;
-                        }
-                        else if (!isAdjacent(stoi(from_str), stoi(to_str)))
-                        {
-                            cout << "Invalid move: Destination is not adjacent. Try again." << endl;
-                        }
-                        else
-                        {
-                            int r1 = (stoi(from_str) - 1) / 3;
-                            int c1 = (stoi(from_str) - 1) % 3;
-                            int r2 = (stoi(to_str) - 1) / 3;
-                            int c2 = (stoi(to_str) - 1) % 3;
-
-                            board[r2][c2] = board[r1][c1];
-                            board[r1][c1] = ' ';
-                            takeRegularMove = false;
-                            break;
-                        }
-                    }
-                }
+                char temp = board[r1][c1];
+                board[r1][c1] = board[r2][c2];
+                board[r2][c2] = temp;
+                cout << ">> " << enemy.name << " used SWAP! Swapped " << p1 << " and " << p2 << endl;
+                ability_used = true;
             }
         }
     }
 
-    if (takeRegularMove)
+    if (!ability_used)
     {
-        if (currentClass.empty())
+        vector<int> open_spots;
+        for (int i = 1; i <= 9; i++)
         {
-            cout << "\nPlayer " << playerNumber << " (" << currentPlayerMarker << ") enter a location to mark: " << endl;
+            int r, c;
+            get_coords(i, r, c);
+            if (board[r][c] == ' ')
+                open_spots.push_back(i);
+        }
+
+        if (!open_spots.empty())
+        {
+            int choice = open_spots[rand() % open_spots.size()];
+            int r, c;
+            get_coords(choice, r, c);
+            board[r][c] = enemy.mark;
+            cout << enemy.name << " placed mark at " << choice << endl;
+        }
+    }
+}
+
+// ==========================================
+// GAME FUNCTIONS
+// ==========================================
+
+int play_round(Character &p, Character &e)
+{
+    char board[3][3] = {{' ', ' ', ' '}, {' ', ' ', ' '}, {' ', ' ', ' '}};
+    int turn = 0;
+    bool p_turn = (rand() % 2 == 0);
+
+    cout << (p_turn ? p.name : e.name) << " goes first!" << endl;
+    intro_board();
+
+    while (true)
+    {
+        print_board(board);
+        char winner = check_winner(board);
+        if (winner == p.mark)
+            return 1;
+        if (winner == e.mark)
+            return 2;
+        if (is_full(board))
+            return 0;
+
+        if (p_turn)
+        {
+            cout << "Your Turn (" << p.mark << "). Choose option:" << endl;
+            cout << "1. Place Mark" << endl;
+            cout << "2. Special Ability (" << p.role << ")" << endl;
+            cout << "Choice: ";
+            int choice = get_int_input();
+
+            bool move_made = false;
+
+            if (choice == 2)
+            {
+                if (p.role == "Paladin")
+                {
+                    if (perform_shift(board))
+                        move_made = true;
+                }
+                else if (p.role == "Alchemist")
+                {
+                    if (perform_swap(board))
+                        move_made = true;
+                }
+                else
+                    cout << "No ability available!" << endl;
+            }
+
+            if (!move_made && choice != 2)
+            {
+                cout << "Enter location (1-9): ";
+                int loc = get_int_input();
+
+                if (loc < 1 || loc > 9)
+                {
+                    cout << "Invalid input." << endl;
+                }
+                else
+                {
+                    int r, c;
+                    get_coords(loc, r, c);
+                    if (board[r][c] == ' ')
+                    {
+                        board[r][c] = p.mark;
+                        move_made = true;
+                    }
+                    else
+                        cout << "Spot taken." << endl;
+                }
+            }
+
+            if (move_made)
+                p_turn = false;
         }
         else
         {
-            cout << "Player " << playerNumber << ", enter a location for your regular move: " << endl;
+            ai_turn(board, e, turn);
+            p_turn = true;
         }
+        turn++;
+    }
+}
 
-        int turn;
-        while (true)
+bool run_battle(Character &p, Character e)
+{
+    cout << "\n========================================" << endl;
+    cout << "BATTLE START: " << p.name << " VS " << e.name << endl;
+    cout << "Enemy Stats: HP " << e.hp << " | ATK " << e.attack << " | DEF " << e.defense << endl;
+    cout << "========================================" << endl;
+
+    while (p.is_alive() && e.is_alive())
+    {
+        cout << "\n--- New Round ---" << endl;
+        cout << p.name << " HP: " << p.hp << "  VS  " << e.name << " HP: " << e.hp << endl;
+
+        int result = play_round(p, e);
+
+        if (result == 1)
         {
-            if (cin >> turn)
+            int dmg = p.attack - e.defense;
+            if (dmg < 1)
+                dmg = 1;
+            e.take_damage(dmg);
+            cout << "\n!!! VICTORY !!! You dealt " << dmg << " damage!" << endl;
+        }
+        else if (result == 2)
+        {
+            int dmg = e.attack - p.defense;
+            if (dmg < 1)
+                dmg = 1;
+            p.take_damage(dmg);
+            cout << "\n!!! DEFEAT !!! You took " << dmg << " damage!" << endl;
+        }
+        else
+        {
+            cout << "\nDRAW! No damage dealt." << endl;
+        }
+    }
+
+    if (!p.is_alive())
+    {
+        cout << "You have died..." << endl;
+        return false;
+    }
+
+    int gold_loot = (rand() % 20) + 10;
+    p.gold += gold_loot;
+    cout << "Enemy defeated! You found " << gold_loot << " gold." << endl;
+    return true;
+}
+
+void visit_shop(Character &p)
+{
+    cout << "\n--- MERCHANT ---" << endl;
+    cout << "Merchant: 'Welcome! Buy something?'" << endl;
+    while (true)
+    {
+        cout << "Your Gold: " << p.gold << endl;
+        cout << "1. Health Potion (Heal 20) - 15g" << endl;
+        cout << "2. Whetstone (+1 Atk)      - 30g" << endl;
+        cout << "3. Iron Plate (+1 Def)     - 30g" << endl;
+        cout << "4. Leave" << endl;
+        cout << "Choice: ";
+
+        int c = get_int_input();
+
+        if (c == 4)
+            break;
+
+        if (c == 1)
+        {
+            if (p.gold >= 15)
             {
-                if (check_loc(board, turn))
-                {
-                    cin.ignore(10000, '\n'); // Clear rest of line
-                    break;                   // Good input
-                }
-                else
-                {
-                    cout << "Invalid move. That space is taken or out of bounds (1-9)." << endl;
-                    cin.ignore(10000, '\n'); // Clear rest of line
-                }
+                p.gold -= 15;
+                p.heal(20);
+                cout << "Healed!" << endl;
+            }
+            else
+                cout << "Not enough gold!" << endl;
+        }
+        else if (c == 2)
+        {
+            if (p.gold >= 30)
+            {
+                p.gold -= 30;
+                p.attack++;
+                cout << "Attack up!" << endl;
+            }
+            else
+                cout << "Not enough gold!" << endl;
+        }
+        else if (c == 3)
+        {
+            if (p.gold >= 30)
+            {
+                p.gold -= 30;
+                p.defense++;
+                cout << "Defense up!" << endl;
+            }
+            else
+                cout << "Not enough gold!" << endl;
+        }
+        else if (c != 4)
+        {
+            cout << "Invalid choice." << endl;
+        }
+    }
+}
+
+void run_event(Character &p, int stage)
+{
+    cout << "\n--- STORY EVENT ---" << endl;
+    if (stage == 2)
+    {
+        cout << "You find a mysterious chest in the woods." << endl;
+        cout << "1. Open it (Chance for gold or trap)" << endl;
+        cout << "2. Leave it" << endl;
+        int c = get_int_input();
+        if (c == 1)
+        {
+            if (rand() % 2 == 0)
+            {
+                cout << "It was trapped! You take 10 damage." << endl;
+                p.take_damage(10);
             }
             else
             {
-                cout << "Invalid input. Enter an empty number between 1 and 9." << endl;
-                cin.clear();
-                cin.ignore(10000, '\n'); // Clear bad input
+                cout << "It contained 30 gold!" << endl;
+                p.gold += 30;
             }
         }
-
-        int r = (turn - 1) / 3;
-        int c = (turn - 1) % 3;
-        board[r][c] = currentPlayerMarker;
-        cout << "Turn successfully placed." << endl;
-        print_board(board);
     }
-    else
+    else if (stage == 4)
     {
-        cout << "Special move successful!" << endl;
-        print_board(board);
-    }
+        cout << "You see a beggar." << endl;
+        cout << "1. Give 10 gold (Good Karma)" << endl;
+        cout << "2. Ignore (Neutral)" << endl;
+        cout << "3. Rob him (Bad Karma, +10 gold)" << endl;
+        int c = get_int_input();
 
-    if (check_win(board))
+        if (c == 1 && p.gold >= 10)
+        {
+            p.gold -= 10;
+            p.morality++;
+            cout << "You feel righteous." << endl;
+        }
+        else if (c == 3)
+        {
+            p.gold += 10;
+            p.morality--;
+            cout << "You stole his coins." << endl;
+        }
+        else
+            cout << "You walk away." << endl;
+    }
+    else if (stage == 6)
     {
-        cout << "\nPlayer " << playerNumber << " (" << currentPlayerMarker << ") wins!" << endl;
+        cout << "You find a cursed sword stuck in a stone." << endl;
+        cout << "1. Take it (+2 Atk, -5 HP)" << endl;
+        cout << "2. Leave it" << endl;
+        int c = get_int_input();
+        if (c == 1)
+        {
+            p.attack += 2;
+            p.take_damage(5);
+            cout << "Power surges through you!" << endl;
+        }
+    }
+}
+
+void save_game(Character &p, int stage)
+{
+    ofstream file("save.txt");
+    if (file.is_open())
+    {
+        file << stage << endl;
+        file << p.name << endl;
+        file << p.role << endl;
+        file << p.mark << endl;
+        file << p.hp << endl;
+        file << p.max_hp << endl;
+        file << p.attack << endl;
+        file << p.defense << endl;
+        file << p.gold << endl;
+        file << p.morality << endl;
+        file.close();
+        cout << "[Game Saved]" << endl;
+    }
+}
+
+bool load_game(Character &p, int &stage)
+{
+    ifstream file("save.txt");
+    if (file.is_open())
+    {
+        file >> stage;
+        file.ignore(); // Skip newline after stage number
+        getline(file, p.name);
+        getline(file, p.role);
+        file >> p.mark;
+        file >> p.hp;
+        file >> p.max_hp;
+        file >> p.attack;
+        file >> p.defense;
+        file >> p.gold;
+        file >> p.morality;
+        file.close();
         return true;
     }
-
     return false;
 }
 
-char p1, p2;
-void char_select()
-{
-    cout << "In battle mode, you can choose your own marker (only the first character entered will be used)" << endl;
-    cout << "Player 1 enter your mark: ";
-    cin >> p1;
-    cin.ignore(10000, '\n');
-    cout << "Player 2 enter your mark: ";
-    cin >> p2;
-    cin.ignore(10000, '\n');
-    while (p1 == p2)
-    {
-        cout << "Markers cannot be the same. Player 2, please enter a different mark: ";
-        cin >> p2;
-        cin.ignore(10000, '\n');
-    }
-    cout << endl;
-}
-
-string c1, c2;
-void class_select()
-{
-    cout << "Player 1 please choose one of the following class types:" << endl;
-    cout << " “paladin” or “alchemist” (must be spelled exactly)" << endl;
-    cin >> c1;
-    cin.ignore(10000, '\n');
-    while (!validate("class", c1))
-    {
-        cout << "Check your spelling and try again" << endl;
-        cin.clear();
-        cin.ignore(10000, '\n');
-        cin >> c1;
-        cin.ignore(10000, '\n');
-    }
-    cout << "Player 1 (" << p1 << ") is " << c1 << endl;
-    cin.clear();
-
-    cout << "Player 2 please choose one of the following class types:" << endl;
-    cout << " “paladin” or “alchemist” (must be spelled exactly)" << endl;
-    cin >> c2;
-    cin.ignore(10000, '\n');
-    while (!validate("class", c2))
-    {
-        cout << "Check your spelling and try again" << endl;
-        cin.clear();
-        cin.ignore(10000, '\n');
-        cin >> c2;
-        cin.ignore(10000, '\n');
-    }
-
-    cout << "Player 2 (" << p2 << ") is " << c2 << endl;
-}
-
-void run_game()
-{
-    char start_board[3][3];
-    intro_board(start_board);
-    print_board(start_board);
-    int count = 0;
-    cout << endl;
-
-    char board[3][3] = {
-        {' ', ' ', ' '},
-        {' ', ' ', ' '},
-        {' ', ' ', ' '}};
-
-    print_board(board);
-
-    while (true)
-    {
-        if (player_move(board, count, 'X', 'O', "", ""))
-        {
-            break;
-        }
-
-        count++;
-
-        if (count == 9)
-        {
-            cout << "Draw!" << endl;
-            break;
-        }
-    }
-}
-
-void run_battle(char p1, char p2, string c1, string c2)
-{
-    cout << p1 << " (" << c1 << ") vs " << p2 << " (" << c2 << ")" << endl;
-    char start_board[3][3];
-    intro_board(start_board);
-    print_board(start_board);
-    int count = 0;
-    cout << endl;
-
-    char board[3][3] = {
-        {' ', ' ', ' '},
-        {' ', ' ', ' '},
-        {' ', ' ', ' '}};
-
-    print_board(board);
-
-    while (true)
-    {
-        if (player_move(board, count, p1, p2, c1, c2))
-        {
-            break;
-        }
-
-        count++;
-
-        if (count == 9)
-        {
-            cout << "Draw!" << endl;
-            break;
-        }
-    }
-}
+// ==========================================
+// MAIN
+// ==========================================
 
 int main()
 {
-    string mode = start_menu();
+    srand(time(0));
+    Character player;
+    int stage = 0;
 
-    if (mode == "original")
+    cout << "=== TIC TAC TOE: RPG CAMPAIGN ===" << endl;
+    cout << "1. New Game" << endl;
+    cout << "2. Load Game" << endl;
+
+    int start_choice = get_int_input();
+
+    if (start_choice == 2 && load_game(player, stage))
     {
-        cout << "Player 1 is X and Player 2 is O" << endl;
-        run_game();
+        cout << "Save loaded! Welcome back " << player.name << endl;
     }
-    else if (mode == "battle")
+    else
     {
-        char_select();
-        class_select();
-        run_battle(p1, p2, c1, c2);
+        cout << "Enter Name: ";
+        getline(cin, player.name);
+
+        while (true)
+        {
+            cout << "Class (Paladin/Alchemist): ";
+            getline(cin, player.role);
+
+            // Convert to lowercase
+            for (int i = 0; i < player.role.length(); i++)
+                player.role[i] = tolower(player.role[i]);
+
+            if (player.role == "paladin" || player.role == "alchemist")
+                break;
+            cout << "Invalid class." << endl;
+        }
+        player.role[0] = toupper(player.role[0]);
+
+        string mark_input;
+        while (true)
+        {
+            cout << "Enter mark (1 char): ";
+            getline(cin, mark_input);
+            if (mark_input.length() == 1)
+            {
+                player.mark = mark_input[0];
+                break;
+            }
+            cout << "Invalid. Must be exactly one character." << endl;
+        }
+
+        player.hp = 100;
+        player.max_hp = 100;
+        player.attack = 10;
+        player.defense = 2;
+        player.gold = 20;
+        player.morality = 0;
+        stage = 0;
     }
 
-    cout << "\nThanks for playing!" << endl;
+    // Campaign Loop
+    while (true)
+    {
+        save_game(player, stage);
+
+        if (stage == 0)
+        {
+            Character slime("Slime", "Paladin", 'S', 40, 5, 0, 0, 0);
+            if (!run_battle(player, slime))
+                break;
+        }
+        else if (stage == 1)
+            visit_shop(player);
+        else if (stage == 2)
+            run_event(player, stage);
+        else if (stage == 3)
+        {
+            Character wolf("Dire Wolf", "Alchemist", 'W', 50, 7, 1, 0, 0);
+            if (!run_battle(player, wolf))
+                break;
+        }
+        else if (stage == 4)
+            run_event(player, stage);
+        else if (stage == 5)
+        {
+            Character goblin("Goblin", "Alchemist", 'G', 60, 8, 2, 0, 0);
+            if (!run_battle(player, goblin))
+                break;
+        }
+        else if (stage == 6)
+            run_event(player, stage);
+        else if (stage == 7)
+        {
+            Character knight("Dark Knight", "Paladin", 'K', 80, 12, 4, 0, 0);
+            if (!run_battle(player, knight))
+                break;
+        }
+        else if (stage == 8)
+            visit_shop(player);
+        else if (stage == 9)
+        {
+            cout << "\n!!! FINAL BOSS !!!" << endl;
+            Character dragon("Dragon", "Boss", 'D', 150, 15, 5, 0, 0);
+            if (run_battle(player, dragon))
+            {
+                cout << "\nCONGRATULATIONS!" << endl;
+                cout << "You have finished the campaign." << endl;
+                if (player.morality > 0)
+                    cout << "Ending: The Saint." << endl;
+                else if (player.morality < 0)
+                    cout << "Ending: The Tyrant." << endl;
+                else
+                    cout << "Ending: The Wanderer." << endl;
+
+                remove("save.txt");
+                break;
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            break;
+        }
+
+        stage++;
+    }
+
+    return 0;
 }
